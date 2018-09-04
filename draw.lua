@@ -1,4 +1,4 @@
--- screen.draw functions
+-- screen.draw functions for Monome's norns
 
 function polygon(cx, cy, radius, angle, points)
 	local radius = radius
