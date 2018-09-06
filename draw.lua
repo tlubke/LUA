@@ -14,12 +14,16 @@ function polygon(cx, cy, radius, angle, points)
 		y[i+1] = y[1] + (radius * math.sin(angle + (i+i-1)*math.pi / points ))
 	end
 	
-	screen.move(x[2],y[2])
-		for i = 3, points + 1 do
-			screen.line(x[i],y[i])
-		end
-	screen.line(x[2],y[2])
-	screen.close()
+	if points == 1 then
+		screen.move(x[1],y[1])
+	else
+		screen.move(x[2],y[2])
+			for i = 3, points + 1 do
+				screen.line(x[i],y[i])
+			end
+		screen.line(x[2],y[2])
+		screen.close()
+	end
 end
 
 function gridlay(div,size,shiftx,shifty)
