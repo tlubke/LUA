@@ -58,6 +58,15 @@ end
 
 -- 4, two-channel tracks (TrackA is evens, TrackB is odds)
 track = {}
+for i=1,8 do
+  track[i] = {}
+    for n = 1, 2 do 
+      track[i][n] = {}
+      for j=1, n do
+        track[i][n][j] = {sub=j-1, on=true}  -- subdivisions have to be indexed by 0
+      end
+    end
+  end
 
 
 
@@ -92,7 +101,6 @@ function init()
   end
   g.refresh()
   
-  retrack()
   redraw()
 end
 
@@ -123,7 +131,7 @@ function gridkey(x,y,z)
     else
       if x == 16 then
         g_row[y] = {}
-        retrack()
+        retrack(y)
         return
       elseif y % 2 == 1 then
         if track[y][tab.count(track[y])][x].on == true then
@@ -169,7 +177,7 @@ function gridkeyhold(x, y, z)
         g_row[y][i] = i
       end
       print(second[y])
-      retrack()
+      retrack(y)
       gridredraw()
     end
   end
@@ -238,14 +246,12 @@ end
 
 
 
-function retrack()
-  for i = 1, 8 do
-  track[i] = {}
-    for n = 1, tab.count(g_row[i]) do 
-      track[i][n] = {}
-      for j=1, n do
-        track[i][n][j] = {sub=j-1, on=true}  -- subdivisions have to be indexed by 0
-      end
+function retrack(y)
+  track[y] = {}
+  for i = 1, tab.count(g_row[y]) do 
+    track[y][i] = {}
+    for n=1, i do
+      track[y][i][n] = {sub=n-1, on=true}  -- subdivisions have to be indexed by 0
     end
   end
 end
