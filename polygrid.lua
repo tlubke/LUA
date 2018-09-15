@@ -1,15 +1,3 @@
--- polyrhythmic sampler
---
--- 4, two-channel tracks
--- 
--- trackA: sets the length 
--- of the tuplet
---
--- trackB: sets length of the 
--- 'measure' in quarter notes
---
--- tapping gridkeys toggles the
--- tuplet subdivisions and 
 -- quarter notes on/off
 
 engine.name = 'Ack'
@@ -28,19 +16,15 @@ local g = grid.connect()
 
 -- clocking variables
 position = 0
-counter = nil
 bpm = 60
+counter = nil
 ppq =  480 -- pulse per quarter
-
-
 
 -- grid variables (until I get this working with a grid)
 g_row = {}
 for i = 1, 8 do
   g_row[i] = {}
 end
-
-
 
   -- for holding one gridkey and pressing another further right
 held = {}
@@ -60,13 +44,9 @@ end
 track = {}
 for i=1,8 do
   track[i] = {}
-    for n = 1, 2 do 
-      track[i][n] = {}
-      for j=1, n do
-        track[i][n][j] = {sub=j-1, on=true}  -- subdivisions have to be indexed by 0
-      end
-    end
-  end
+  track[i][1] = {}
+  track[i][1][1] = {sub=0, on=false}  -- subdivisions have to be indexed by 0
+end
 
 
 
@@ -77,21 +57,28 @@ for i=1,8 do
 
 
 function init()
+  
+  params:add_number("bpm",15,400,60)
+  
   -- metronome setup
   counter = metro.alloc()
-  counter.time = (bpm/60) / ppq
-  counter.count = 480
+  counter.time = 60 / (params:get("bpm") * ppq)
+  counter.count = -1
   counter.callback = count
   counter:start()
-
-  for channel=1,4 do
-      ack.add_channel_params(channel)
-    end
-    ack.add_effects_params()
+  
+  ack.add_effects_params()
+  
+  for i=1,4 do
+    ack.add_channel_params(i)
+  end
+  
+  params:read("gittifer/polygrid.pset")
+  params:bang()
 
   -- supposed to show basic functionality/layout of grid
   g.all(0)
-    for i=1, 4 do
+  for i=1, 4 do
     for n=1, math.random(16) do
       g.led(n, i*2 -1, 8)
     end
@@ -125,6 +112,7 @@ function gridkey(x,y,z)
         return
       elseif x == 1 then
           g_row[y][x] = x
+          retrack(y)
         gridredraw()
       end
       return
@@ -200,7 +188,8 @@ end
 
 function count(c)
   position = (position + 1) % ppq
-
+  counter.time = 60 / (params:get("bpm")*ppq)
+  
 --[[
   for checkB=2, 8, 2 do
     for B_div=1, tab.count(track[checkB]) do
@@ -215,6 +204,7 @@ function count(c)
         position == 0
         then
         --]]
+        
           for i=1, 7, 2 do 
             for n=1, tab.count(track[i]) do
               cnt = tab.count(track[i])
@@ -226,16 +216,11 @@ function count(c)
                 track[i][cnt][n].on == true 
                 or position == 0 and track[i][cnt][1].on == true -- for downbeat, makes it toggle-able
                 then
-                  engine.trig(i//2 + 1) -- samples are only 1-4
+                  engine.trig(i//2) -- samples are only 0-3
                 end
               end
             end
           end
-        --[[end
-      end
-    end
-  end
-  --]]
 end
 
 
