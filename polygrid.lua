@@ -18,6 +18,15 @@ local ack = require 'jah/ack'
 
 local g = grid.connect()
 
+--[[current issues:
+                  -still can't get quarter notes to works
+                  -a track of length two is backwards,
+                  so the offbeat plays on the first column instead of
+                  the second where it should be happening.
+                  
+
+--]]
+
 
 
 ------------
@@ -156,8 +165,8 @@ end
 function gridkeyhold(x, y, z)
   if z==1 and held[y] then heldmax[y] = 0 end
   held[y] = held[y] + (z*2-1)
+  
   if held[y] > heldmax[y] then heldmax[y] = held[y] end
-  --print(held[y])
 
   if y > 8 and held[y]==1 then
   -- checks against track boundaries
@@ -168,10 +177,6 @@ function gridkeyhold(x, y, z)
     second[y] = x
   elseif z==0 then
     if y<=8 and held[y] == 1 and heldmax[y]==2 then
-      -- hold only works starting from col:1
-      --e = {}
-      --e.loop_start = math.min(first[y],second[y])
-      --print("start:"..e.loop_start)
       g_row[y] = {}
       for i = 1, math.max(first[y],second[y]) do
         g_row[y][i] = i
@@ -201,42 +206,30 @@ end
 function count(c)
   position = (position + 1) % (ppq + 1) 
   counter.time = 60 / (params:get("bpm") * ppq)
+  if position == 0 then gridredraw() end -- for a pretty pulsing effect
   
---[[
-  for checkB=2, 8, 2 do
-    for B_div=1, tab.count(track[checkB]) do
-      cnt = tab.count(track[checkB])
-      if cnt == 0 or nil then 
-        return
+  for i=1, 7, 2 do 
+    for n=1, tab.count(track[i]) do
+      cnt = tab.count(track[i])
+      if cnt == 0 or nil then return
       else
-        if position / (ppq * cnt)  == 1
-        and
-        track[checkB][cnt][B_div].on == true 
-        or
-        position == 0
-        then
-        --]]
-        
-          for i=1, 7, 2 do 
-            for n=1, tab.count(track[i]) do
-              cnt = tab.count(track[i])
-              if cnt == 0 or nil then return
-              else
-              -- check each note in sub length for on/off
-                if position / ( ppq // (tab.count(track[i][cnt]))) == n
-                and
-                track[i][cnt][n].on == true 
-                 -- for downbeat, makes it toggle-able
-                then
-                  engine.trig(i//2) -- samples are only 0-3
-                  gridredraw()
-                  g.led(n,i,15)
-                  g.refresh()
-                  print(n)
-                end
-              end
-            end
+      -- check each note in sub length for on/off
+        if position / ( ppq // (tab.count(track[i][cnt]))) == n then
+          g.led(n,i,15)
+          g.refresh()
+          if track[i][cnt][n].on == true then
+            -- for downbeat, makes it toggle-able
+            engine.trig(i//2) -- samples are only 0-3
+            g.led(n,i,8)
+            g.refresh()
+          else
+            g.led(n,i,4)
+            g.refresh()
           end
+        end
+      end
+    end
+  end
 end
 
 
@@ -273,13 +266,11 @@ function gridredraw()
       else
         if i % 2 == 1 then
           if track[i][ct][n].on == true then
-            g.led(n,i,10)
+            g.led(n,i,12)
           else
             g.led(n,i,4)
           end
-          --[[if position / ( ppq // (tab.count(track_A[i][ctA]) / track_A[i][ctA][n].sub) ) == 1 then
-            g.led(n,i*2-1,15)
-          --]]
+          
         elseif i % 2 == 0 then
           if track[i][ct][n].on == true then
             g.led(n,i,10)
