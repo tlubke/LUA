@@ -1,3 +1,15 @@
+-- polyrhythmic sampler
+--
+-- 4, two-channel tracks
+-- 
+-- trackA: sets the length 
+-- of the tuplet
+--
+-- trackB: sets length of the 
+-- 'measure' in quarter notes
+--
+-- tapping gridkeys toggles the
+-- tuplet subdivisions and 
 -- quarter notes on/off
 
 engine.name = 'Ack'
@@ -187,8 +199,8 @@ end
 
 
 function count(c)
-  position = (position + 1) % ppq
-  counter.time = 60 / (params:get("bpm")*ppq)
+  position = (position + 1) % (ppq + 1) 
+  counter.time = 60 / (params:get("bpm") * ppq)
   
 --[[
   for checkB=2, 8, 2 do
@@ -211,12 +223,16 @@ function count(c)
               if cnt == 0 or nil then return
               else
               -- check each note in sub length for on/off
-                if position / ( ppq // (tab.count(track[i][cnt]) / track[i][cnt][n].sub) ) == 1
+                if position / ( ppq // (tab.count(track[i][cnt]))) == n
                 and
                 track[i][cnt][n].on == true 
-                or position == 0 and track[i][cnt][1].on == true -- for downbeat, makes it toggle-able
+                 -- for downbeat, makes it toggle-able
                 then
                   engine.trig(i//2) -- samples are only 0-3
+                  gridredraw()
+                  g.led(n,i,15)
+                  g.refresh()
+                  print(n)
                 end
               end
             end
