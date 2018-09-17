@@ -90,13 +90,6 @@ function init()
   
   params:add_number("bpm",15,400,60)
   
-  -- metronome setup
-  counter = metro.alloc()
-  counter.time = 60 / (params:get("bpm") * ppq)
-  counter.count = -1
-  counter.callback = count
-  --counter:start()
-  
   ack.add_effects_params()
   
   for i=1,4 do
@@ -104,6 +97,13 @@ function init()
   end
   
   params:read("gittifer/polygrid.pset")
+  
+  -- metronome setup
+  counter = metro.alloc()
+  counter.time = 60 / (params:get("bpm") * ppq)
+  counter.count = -1
+  counter.callback = count
+  --counter:start()
 
   -- supposed to show basic functionality/layout of grid
   g.all(0)
@@ -154,17 +154,22 @@ function gridkey(x,y,z)
       if x == 16 and y % 2 == 1 then
         track[y] = {}
         return
-      elseif y % 2 == 1 then
-        if track[y][tab.count(track[y])][x].on == true then
-          track[y][tab.count(track[y])][x].on = false
-        else
-          track[y][tab.count(track[y])][x].on = true
-        end
-      elseif y % 2 == 0 then
-        if track[y][tab.count(track[y])][x].on == true then
-          track[y][tab.count(track[y])][x].on = false
-        else
-          track[y][tab.count(track[y])][x].on = true
+      end
+      if x > tab.count(track[y][ tab.count(track[y]) ]) then
+        return
+      else
+        if y % 2 == 1 then
+          if track[y][tab.count(track[y])][x].on == true then
+            track[y][tab.count(track[y])][x].on = false
+          else
+            track[y][tab.count(track[y])][x].on = true
+          end
+        elseif y % 2 == 0 then
+          if track[y][tab.count(track[y])][x].on == true then
+            track[y][tab.count(track[y])][x].on = false
+          else
+            track[y][tab.count(track[y])][x].on = true
+          end
         end
       end
     end
