@@ -19,12 +19,13 @@ local ack = require 'jah/ack'
 local g = grid.connect()
 
 --[[current issues:
-                  -still can't get quarter notes to works
+                  -quarter notes work now, but higher B-tracks will not play if the quarter note of the tack below it is off.
+                  
                   -a track of length two is backwards,
                   so the offbeat plays on the first column instead of
                   the second where it should be happening.
                   
-
+                  - A-tracks are backwards again compared to B-track lighting
 --]]
 
 
@@ -37,15 +38,13 @@ local g = grid.connect()
 
 -- clocking variables
 position = 0
+q_position = 0
 bpm = 60
 counter = nil
-ppq =  480 -- pulse per quarter
+running = false
+ppq =  24 -- pulse per quarter
 
--- grid variables (until I get this working with a grid)
-g_row = {}
-for i = 1, 8 do
-  g_row[i] = {}
-end
+-- grid variables
 
   -- for holding one gridkey and pressing another further right
 held = {}
@@ -64,9 +63,19 @@ end
 -- 4, two-channel tracks (TrackA is evens, TrackB is odds)
 track = {}
 for i=1,8 do
+  if i % 2 == 1 then
   track[i] = {}
   track[i][1] = {}
   track[i][1][1] = {sub=0, on=false}  -- subdivisions have to be indexed by 0
+  else
+    track[i] = {}
+    for n=1, 16 do
+      track[i][n] = {}
+      for j=1, 16 do
+        track[i][n][j] = {sub=0, on=true}
+      end
+    end
+  end
 end
 
 
@@ -86,7 +95,7 @@ function init()
   counter.time = 60 / (params:get("bpm") * ppq)
   counter.count = -1
   counter.callback = count
-  counter:start()
+  --counter:start()
   
   ack.add_effects_params()
   
@@ -95,15 +104,14 @@ function init()
   end
   
   params:read("gittifer/polygrid.pset")
-  params:bang()
 
   -- supposed to show basic functionality/layout of grid
   g.all(0)
   for i=1, 4 do
     for n=1, math.random(16) do
-      g.led(n, i*2 -1, 8)
+      g.led(n, i*2 -1, 10)
     end
-    for n=1, math.random(8) do
+    for n=1, 16 do
       g.led(n, i*2, 4)
     end
   end
@@ -122,25 +130,29 @@ end
 
 function g.event(x, y, z)
   --print("got event from grid: row: " .. y .. ", col: " .. x .. ", state: " .. z)
+  if running == false then
+    counter:start()
+    running = true
+  end
   gridkeyhold(x,y,z)
   gridkey(x,y,z)
 end
 
 function gridkey(x,y,z)
   if z == 1 then
-    if tab.count(g_row[y]) == 0 or tab.count(g_row[y]) == nil then
+    if tab.count(track[y]) == 0 or tab.count(track[y]) == nil then
       if x > 1 then
         return
       elseif x == 1 then
-          g_row[y][x] = x
-          retrack(y)
+          track[y] = {}
+          track[y][x] = {}
+          track[y][x][x] = {sub=0, on=true}
         gridredraw()
       end
       return
     else
-      if x == 16 then
-        g_row[y] = {}
-        retrack(y)
+      if x == 16 and y % 2 == 1 then
+        track[y] = {}
         return
       elseif y % 2 == 1 then
         if track[y][tab.count(track[y])][x].on == true then
@@ -177,15 +189,17 @@ function gridkeyhold(x, y, z)
     second[y] = x
   elseif z==0 then
     if y<=8 and held[y] == 1 and heldmax[y]==2 then
-      g_row[y] = {}
+      track[y] = {}
       for i = 1, math.max(first[y],second[y]) do
-        g_row[y][i] = i
+        track[y][i] = {}
+        for n=1, i do
+          track[y][i][n] = {sub=n-1, on=true}  -- subdivisions have to be indexed by 0
+        end
       end
-      print(second[y])
-      retrack(y)
-      gridredraw()
     end
   end
+  
+  gridredraw()
 end
 
 
@@ -206,25 +220,34 @@ end
 function count(c)
   position = (position + 1) % (ppq + 1) 
   counter.time = 60 / (params:get("bpm") * ppq)
-  if position == 0 then gridredraw() end -- for a pretty pulsing effect
+  if position == 0 then -- for a pretty pulsing effect
+    gridredraw()
+    q_position = (q_position % 16) + 1 
+  end 
   
   for i=1, 7, 2 do 
     for n=1, tab.count(track[i]) do
       cnt = tab.count(track[i])
       if cnt == 0 or nil then return
       else
-      -- check each note in sub length for on/off
-        if position / ( ppq // (tab.count(track[i][cnt]))) == n then
-          g.led(n,i,15)
-          g.refresh()
-          if track[i][cnt][n].on == true then
-            -- for downbeat, makes it toggle-able
-            engine.trig(i//2) -- samples are only 0-3
-            g.led(n,i,8)
+        if track[i+1][16][q_position].on == false then
+          return
+        else
+          g.led(q_position,i+1,13)
             g.refresh()
-          else
-            g.led(n,i,4)
+        -- check each note in sub length for on/off
+          if position / ( ppq // (tab.count(track[i][cnt]))) == n then
+            g.led(n,i,15)
             g.refresh()
+            if track[i][cnt][n].on == true then
+              -- for downbeat, makes it toggle-able
+              engine.trig(i//2) -- samples are only 0-3
+              g.led(n,i,8)
+              g.refresh()
+            else
+              g.led(n,i,4)
+              g.refresh()
+            end
           end
         end
       end
@@ -238,17 +261,6 @@ end
 -- refresh/redraw functions
 ---------------------------
 
-
-
-function retrack(y)
-  track[y] = {}
-  for i = 1, tab.count(g_row[y]) do 
-    track[y][i] = {}
-    for n=1, i do
-      track[y][i][n] = {sub=n-1, on=true}  -- subdivisions have to be indexed by 0
-    end
-  end
-end
 
 function redraw()
   screen.clear()
@@ -273,9 +285,9 @@ function gridredraw()
           
         elseif i % 2 == 0 then
           if track[i][ct][n].on == true then
-            g.led(n,i,10)
-          else
             g.led(n,i,4)
+          else
+            g.led(n,i,0)
           end
         end
       end
