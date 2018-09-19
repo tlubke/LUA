@@ -1,15 +1,17 @@
--- polyrhythmic sampler
+-- Ekombi
+--
+-- a polyrhythmic sampler
 --
 -- 4, two-channel tracks
--- 
--- trackA: sets the length 
+--
+-- trackA: sets the length
 -- of the tuplet
 --
--- trackB: sets length of the 
+-- trackB: sets length of the
 -- 'measure' in quarter notes
 --
 -- tapping gridkeys toggles the
--- tuplet subdivisions and 
+-- tuplet subdivisions and
 -- quarter notes on/off
 
 engine.name = 'Ack'
@@ -18,13 +20,19 @@ local ack = require 'jah/ack'
 
 local g = grid.connect()
 
+--[[whats next?:
+                - continue optimizing
+                - beatclock integration for midi sync
+                - adjust B-track length for euclidian rhythms
+]]--
+
 --[[current issues:
                   -quarter notes work now, but higher B-tracks will not play if the quarter note of the tack below it is off.
-                  
+
                   -a track of length two is backwards,
                   so the offbeat plays on the first column instead of
                   the second where it should be happening.
-                  
+
                   - A-tracks are backwards again compared to B-track lighting
 --]]
 
@@ -42,7 +50,7 @@ q_position = 0
 bpm = 60
 counter = nil
 running = false
-ppq =  24 -- pulse per quarter
+ppq =  240 -- pulse per quarter
 
 -- grid variables
 
@@ -64,9 +72,9 @@ end
 track = {}
 for i=1,8 do
   if i % 2 == 1 then
-  track[i] = {}
-  track[i][1] = {}
-  track[i][1][1] = {sub=0, on=false}  -- subdivisions have to be indexed by 0
+    track[i] = {}
+    track[i][1] = {}
+    track[i][1][1] = {sub=0, on=false}  -- subdivisions have to be indexed by 0
   else
     track[i] = {}
     for n=1, 16 do
@@ -87,17 +95,17 @@ end
 
 
 function init()
-  
+
   params:add_number("bpm",15,400,60)
-  
+
   ack.add_effects_params()
-  
+
   for i=1,4 do
     ack.add_channel_params(i)
   end
-  
+
   params:read("gittifer/polygrid.pset")
-  
+
   -- metronome setup
   counter = metro.alloc()
   counter.time = 60 / (params:get("bpm") * ppq)
@@ -116,7 +124,7 @@ function init()
     end
   end
   g.refresh()
-  
+
   redraw()
 end
 
@@ -182,7 +190,7 @@ end
 function gridkeyhold(x, y, z)
   if z==1 and held[y] then heldmax[y] = 0 end
   held[y] = held[y] + (z*2-1)
-  
+
   if held[y] > heldmax[y] then heldmax[y] = held[y] end
 
   if y > 8 and held[y]==1 then
@@ -203,7 +211,7 @@ function gridkeyhold(x, y, z)
       end
     end
   end
-  
+
   gridredraw()
 end
 
@@ -223,38 +231,41 @@ end
 
 
 function count(c)
-  position = (position + 1) % (ppq + 1) 
+  position = (position + 1) % (ppq + 1)
   counter.time = 60 / (params:get("bpm") * ppq)
   if position == 0 then -- for a pretty pulsing effect
     gridredraw()
-    q_position = (q_position % 16) + 1 
-  end 
+    q_position = (q_position % 16) + 1
+  end
   
-  for i=1, 7, 2 do 
-    for n=1, tab.count(track[i]) do
-      cnt = tab.count(track[i])
-      if cnt == 0 or nil then return
-      else
-        if track[i+1][16][q_position].on == false then
+  for i=2, 8, 2 do
+    cnt = tab.count(track[i])
+    if cnt == 0 or cnt == nil then
+      return
+    else
+      if track[i][cnt][q_position].on == true then
+        cnt = tab.count(track[i-1])
+        if cnt == 0 or cnt == nil then
           return
         else
-          g.led(q_position,i+1,13)
-            g.refresh()
-        -- check each note in sub length for on/off
-          if position / ( ppq // (tab.count(track[i][cnt]))) == n then
-            g.led(n,i,15)
-            g.refresh()
-            if track[i][cnt][n].on == true then
-              -- for downbeat, makes it toggle-able
-              engine.trig(i//2) -- samples are only 0-3
-              g.led(n,i,8)
+          for n=1, cnt do
+            if position / ( ppq // (tab.count(track[i-1][cnt]))) == n then
+              g.led(n,i-1,15)
               g.refresh()
-            else
-              g.led(n,i,4)
-              g.refresh()
+              if track[i-1][cnt][n].on == true then
+                -- for downbeat, makes it toggle-able
+                engine.trig(i//2-1) -- samples are only 0-3
+                g.led(n,i-1,8)
+                g.refresh()
+              else
+                g.led(n,i-1,4)
+                g.refresh()
+              end
             end
           end
         end
+      else
+        -- pass
       end
     end
   end
@@ -287,17 +298,18 @@ function gridredraw()
           else
             g.led(n,i,4)
           end
-          
+
         elseif i % 2 == 0 then
           if track[i][ct][n].on == true then
             g.led(n,i,4)
           else
             g.led(n,i,0)
           end
+          g.led(q_position,i,13)
         end
       end
     end
   end
-  
+
 g.refresh()
 end
