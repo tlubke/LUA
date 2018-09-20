@@ -46,7 +46,7 @@ q_position = 0
 bpm = 60
 counter = nil
 running = false
-ppq =  24 -- pulse per quarter
+ppq =  480 -- pulse per quarter
 
 -- grid variables
 
