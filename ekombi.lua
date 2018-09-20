@@ -23,17 +23,13 @@ local g = grid.connect()
 --[[whats next?:
                 - continue optimizing
                 - beatclock integration for midi sync
-                - adjust B-track length for euclidian rhythms
 ]]--
 
 --[[current issues:
-                  -quarter notes work now, but higher B-tracks will not play if the quarter note of the tack below it is off.
-
                   -a track of length two is backwards,
                   so the offbeat plays on the first column instead of
                   the second where it should be happening.
 
-                  - A-tracks are backwards again compared to B-track lighting
 --]]
 
 
@@ -50,7 +46,7 @@ q_position = 0
 bpm = 60
 counter = nil
 running = false
-ppq =  240 -- pulse per quarter
+ppq =  24 -- pulse per quarter
 
 -- grid variables
 
@@ -138,10 +134,6 @@ end
 
 function g.event(x, y, z)
   --print("got event from grid: row: " .. y .. ", col: " .. x .. ", state: " .. z)
-  if running == false then
-    counter:start()
-    running = true
-  end
   gridkeyhold(x,y,z)
   gridkey(x,y,z)
 end
@@ -180,6 +172,10 @@ function gridkey(x,y,z)
           end
         end
       end
+      if running == false then
+        counter:start()
+        running = true
+      end
     end
   end
   gridredraw()
@@ -217,6 +213,20 @@ end
 
 
 
+---------------------------
+-- norns control functions
+---------------------------
+
+
+
+function enc(n,d)
+  if n == 1 then
+    params:delta("bpm",d)
+    redraw()
+  end
+end
+
+
 ------------------
 -- active functions
 -------------------
@@ -243,7 +253,7 @@ function count(c)
     if cnt == 0 or cnt == nil then
       return
     else
-      if track[i][cnt][q_position].on == true then
+      if track[i][cnt][(q_position%cnt)+1].on == true then
         cnt = tab.count(track[i-1])
         if cnt == 0 or cnt == nil then
           return
@@ -280,6 +290,8 @@ end
 
 function redraw()
   screen.clear()
+  screen.move(0,5)
+  screen.text("bpm:"..params:get("bpm"))
   screen.update()
 end
 
@@ -301,11 +313,11 @@ function gridredraw()
 
         elseif i % 2 == 0 then
           if track[i][ct][n].on == true then
-            g.led(n,i,4)
+            g.led(n,i,10)
           else
-            g.led(n,i,0)
+            g.led(n,i,4)
           end
-          g.led(q_position,i,13)
+          g.led((q_position%ct)+1,i,15)
         end
       end
     end
