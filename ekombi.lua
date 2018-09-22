@@ -2,6 +2,7 @@
 --
 -- a polyrhythmic sampler
 --
+-- ------------------------------------------
 -- 4, two-channel tracks
 --
 -- trackA: sets the length
@@ -9,10 +10,16 @@
 --
 -- trackB: sets length of the
 -- 'measure' in quarter notes
+-- -------------------------------------------
+-- ---------------------------------
+-- hold a key and press another
+-- key in the same row to set
+-- the length of the track
 --
 -- tapping gridkeys toggles the
 -- tuplet subdivisions and
 -- quarter notes on/off
+-- -------------------------------------------
 
 engine.name = 'Ack'
 
@@ -26,10 +33,7 @@ local g = grid.connect()
 ]]--
 
 --[[current issues:
-                  -a track of length two is backwards,
-                  so the offbeat plays on the first column instead of
-                  the second where it should be happening.
-
+                  - are rhythms totally accurate at this ppq?
 --]]
 
 
@@ -70,13 +74,13 @@ for i=1,8 do
   if i % 2 == 1 then
     track[i] = {}
     track[i][1] = {}
-    track[i][1][1] = {sub=0, on=false}  -- subdivisions have to be indexed by 0
+    track[i][1][1] = false  -- subdivisions have to be indexed by 0
   else
     track[i] = {}
     for n=1, 16 do
       track[i][n] = {}
       for j=1, 16 do
-        track[i][n][j] = {sub=0, on=true}
+        track[i][n][j] = true
       end
     end
   end
@@ -110,17 +114,7 @@ function init()
   --counter:start()
 
   -- supposed to show basic functionality/layout of grid
-  g.all(0)
-  for i=1, 4 do
-    for n=1, math.random(16) do
-      g.led(n, i*2 -1, 10)
-    end
-    for n=1, 16 do
-      g.led(n, i*2, 4)
-    end
-  end
-  g.refresh()
-
+ gridredraw()
   redraw()
 end
 
@@ -146,29 +140,31 @@ function gridkey(x,y,z)
       elseif x == 1 then
           track[y] = {}
           track[y][x] = {}
-          track[y][x][x] = {sub=0, on=true}
+          track[y][x][x] = true
         gridredraw()
       end
       return
     else
       if x == 16 and y % 2 == 1 then
         track[y] = {}
+        track[y][1] = {}
+        track[y][1][1] = false
         return
       end
       if x > tab.count(track[y][ tab.count(track[y]) ]) then
         return
       else
         if y % 2 == 1 then
-          if track[y][tab.count(track[y])][x].on == true then
-            track[y][tab.count(track[y])][x].on = false
+          if track[y][tab.count(track[y])][x] == true then
+            track[y][tab.count(track[y])][x] = false
           else
-            track[y][tab.count(track[y])][x].on = true
+            track[y][tab.count(track[y])][x] = true
           end
         elseif y % 2 == 0 then
-          if track[y][tab.count(track[y])][x].on == true then
-            track[y][tab.count(track[y])][x].on = false
+          if track[y][tab.count(track[y])][x] == true then
+            track[y][tab.count(track[y])][x] = false
           else
-            track[y][tab.count(track[y])][x].on = true
+            track[y][tab.count(track[y])][x] = true
           end
         end
       end
@@ -202,7 +198,7 @@ function gridkeyhold(x, y, z)
       for i = 1, math.max(first[y],second[y]) do
         track[y][i] = {}
         for n=1, i do
-          track[y][i][n] = {sub=n-1, on=true}  -- subdivisions have to be indexed by 0
+          track[y][i][n] = true  -- subdivisions have to be indexed by 0
         end
       end
     end
@@ -241,35 +237,28 @@ end
 
 
 function count(c)
-  position = (position + 1) % (ppq + 1)
+  position = (position + 1) % (ppq)
   counter.time = 60 / (params:get("bpm") * ppq)
-  if position == 0 then -- for a pretty pulsing effect
-    gridredraw()
-    q_position = (q_position % 16) + 1
+  if position == 0 then 
+    q_position = q_position + 1
+    fast_gridredraw()
   end
-  
+
   for i=2, 8, 2 do
     cnt = tab.count(track[i])
     if cnt == 0 or cnt == nil then
       return
     else
-      if track[i][cnt][(q_position%cnt)+1].on == true then
+      if track[i][cnt][(q_position%cnt)+1] == true then
         cnt = tab.count(track[i-1])
-        if cnt == 0 or cnt == nil then
-          return
-        else
-          for n=1, cnt do
-            if position / ( ppq // (tab.count(track[i-1][cnt]))) == n then
-              g.led(n,i-1,15)
-              g.refresh()
-              if track[i-1][cnt][n].on == true then
+          if cnt == 0 or cnt == nil then
+            return
+          else
+            for n=1, cnt do
+            if position / ( ppq // (tab.count(track[i-1][cnt]))) == n-1 then
+              if track[i-1][cnt][n] == true then
                 -- for downbeat, makes it toggle-able
                 engine.trig(i//2-1) -- samples are only 0-3
-                g.led(n,i-1,8)
-                g.refresh()
-              else
-                g.led(n,i-1,4)
-                g.refresh()
               end
             end
           end
@@ -305,17 +294,39 @@ function gridredraw()
       if ct == 0 or nil then return
       else
         if i % 2 == 1 then
-          if track[i][ct][n].on == true then
+          if track[i][ct][n] == true then
             g.led(n,i,12)
           else
             g.led(n,i,4)
           end
 
         elseif i % 2 == 0 then
-          if track[i][ct][n].on == true then
-            g.led(n,i,10)
+          if track[i][ct][n] == true then
+            g.led(n,i,8)
           else
-            g.led(n,i,4)
+            g.led(n,i,2)
+          end
+          g.led((q_position%ct)+1,i,15)
+        end
+      end
+    end
+  end
+
+g.refresh()
+end
+
+function fast_gridredraw()
+
+  for i=1, 8 do
+    for n=1, tab.count(track[i]) do
+      ct = tab.count(track[i])
+      if ct == 0 or nil then return
+      else
+        if i % 2 == 0 then
+          if track[i][ct][n] == true then
+            g.led(n,i,8)
+          else
+            g.led(n,i,2)
           end
           g.led((q_position%ct)+1,i,15)
         end
