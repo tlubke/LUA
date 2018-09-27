@@ -30,7 +30,7 @@
 -- enc3: filter cutoff
 --
 -- key1: save pattern
--- key2: load patter
+-- key2: load pattern
 -- key3: stop clock
 -- ---------------------------------------------
 
@@ -41,8 +41,9 @@ local ack = require 'jah/ack'
 local g = grid.connect()
 
 --[[whats next?:
-                - pattern saving/loading and view on norns in the works
-                  currently works with parameter presets
+                - enc3 meter
+                - patterns display on screen before loading for a set amount of time, 
+                  then returns to displaying current grid pattern
                 - continue optimizing
                 - beatclock integration for midi sync
 ]]--
@@ -65,11 +66,14 @@ q_position = 0
 bpm = 60
 counter = nil
 running = false
-ppq =  480 -- pulses per quarter
+ppq =  480 -- pulses per quarter, lower this if you come across performance issues.
 
--- param variables
+-- pattern variables
 pattern_select = 1
+
+-- display variables
 pattern_display = "default"
+meter_display = 50
 
 -- grid variables
 -- for holding one gridkey and pressing another further right
@@ -92,13 +96,13 @@ for i=1,8 do
   if i % 2 == 1 then
     track[i] = {}
     track[i][1] = {}
-    track[i][1][1] = false
+    track[i][1][1] = 0
   else
     track[i] = {}
     for n=1, 16 do
       track[i][n] = {}
       for j=1, 16 do
-        track[i][n][j] = true
+        track[i][n][j] = 1
       end
     end
   end
@@ -115,7 +119,7 @@ end
 function init()
 
   -- parameters
-  params:add_number("bpm",15,400,60)
+  params:add_number("bpm", 15, 400, 60)
 
   ack.add_effects_params()
 
@@ -161,7 +165,7 @@ function gridkey(x,y,z)
       elseif x == 1 then
           track[y] = {}
           track[y][x] = {}
-          track[y][x][x] = true
+          track[y][x][x] = 1
         gridredraw()
       end
       return
@@ -171,7 +175,7 @@ function gridkey(x,y,z)
       if x == 16 and y % 2 == 1 then
         track[y] = {}
         track[y][1] = {}
-        track[y][1][1] = false
+        track[y][1][1] = 0
         return
       end
 
@@ -179,10 +183,10 @@ function gridkey(x,y,z)
       if x > cnt then
         return
       else
-        if track[y][cnt][x] == true then
-          track[y][cnt][x] = false
+        if track[y][cnt][x] == 1 then
+          track[y][cnt][x] = 0
         else
-          track[y][cnt][x] = true
+          track[y][cnt][x] = 1
         end
       end
 
@@ -194,6 +198,7 @@ function gridkey(x,y,z)
 
     end
   end
+  redraw()
   gridredraw()
 end
 
@@ -201,26 +206,27 @@ end
 
 function gridkeyhold(x, y, z)
   if z == 1 and held[y] then heldmax[y] = 0 end
-  held[y] = held[y] + (z*2-1)
+  held[y] = held[y] + (z*2 -1)
 
   if held[y] > heldmax[y] then heldmax[y] = held[y] end
 
-  if y > 8 and held[y]==1 then
+  if y > 8 and held[y] == 1 then
       first[y] = x
   elseif y <= 8 and held[y] == 2 then
     second[y] = x
   elseif z == 0 then
-    if y <= 8 and held[y] == 1 and heldmax[y]==2 then
+    if y <= 8 and held[y] == 1 and heldmax[y] == 2 then
       track[y] = {}
       for i = 1, second[y] do
         track[y][i] = {}
         for n=1, i do
-          track[y][i][n] = true
+          track[y][i][n] = 1
         end
       end
     end
   end
-
+  
+  redraw()
   gridredraw()
 end
 
@@ -239,7 +245,7 @@ function enc(n,d)
   
   if n == 2 then
     pattern_select = util.clamp(pattern_select + d, 1, 16)
-    print("pattern"..pattern_select)
+    print("pattern:"..pattern_select)
   end
   
   if n == 3 then
@@ -252,20 +258,16 @@ redraw()
 end
 
 function key(n,z)
-local pset_str = ""
 
   if z == 1 then
     
+    if n == 1 then
+      save_pattern()
+    end
+    
     if n == 2 then
-      if pattern_select < 10 then
-        pset_str = ("gittifer/ekombi-0"..pattern_select..".pset")
-      else
-        pset_str = ("gittifer/ekombi-"..pattern_select..".pset")
-      end
-      params:read(pset_str)
-      
+      load_pattern()
       pattern_display = pattern_select
-      
     end
     
     if n == 3 then
@@ -281,6 +283,7 @@ local pset_str = ""
     
   end
 
+gridredraw()
 redraw()
 end
 ------------------
@@ -309,14 +312,14 @@ function count(c)
     if cnt == 0 or cnt == nil then
       return
     else
-      if track[i][cnt][(q_position%cnt)+1] == true then
+      if track[i][cnt][(q_position%cnt)+1] == 1 then
         cnt = tab.count(track[i-1])
           if cnt == 0 or cnt == nil then
             return
           else
             for n=1, cnt do
             if position / ( ppq // (tab.count(track[i-1][cnt]))) == n-1 then
-              if track[i-1][cnt][n] == true then
+              if track[i-1][cnt][n] == 1 then
                 engine.trig(i//2 -1) -- samples are only 0-3
               end
             end
@@ -338,20 +341,42 @@ end
 
 function redraw()
   screen.clear()
+  screen.aa(0)
   
   screen.level(15)
+    -- grid pattern preset display
+    for i=1, 8 do
+      for n=1, tab.count(track[i]) do
+        if track[i][tab.count(track[i])][n] == 1 then
+          screen.rect((n-1)*7, 1 + i*7, 6, 6)
+          screen.fill()
+          screen.move(tab.count(track[i])*7, i*7 + 7)
+          screen.text(tab.count(track[i]))
+        else
+          screen.rect(1 + (n-1)*7, 2 + i*7, 5, 5)
+          screen.stroke()
+          screen.move(tab.count(track[i])*7, 7 + i*7)
+          screen.text(tab.count(track[i]))
+        end
+      end
+    end
+  
+    -- param display
     screen.move(0,5)
     screen.text("bpm:"..params:get("bpm"))
-    screen.move(0,32)
+    screen.move(64,5)
     screen.level(15)
-    screen.text("pattern:"..pattern_select)
+    screen.text_center("pattern:"..pattern_select)
     
+    
+    -- pause icon
     if not running then
-      screen.rect(123,58,2,6)
-      screen.rect(126,58,2,6)
+      screen.rect(123,57,2,6)
+      screen.rect(126,57,2,6)
       screen.fill()
     end
   
+  -- currently selected pattern
   screen.level(1)
     screen.move(128,5)
     screen.text_right(pattern_display)
@@ -369,14 +394,14 @@ function gridredraw()
       if ct == 0 or nil then return
       else
         if i % 2 == 1 then
-          if track[i][ct][n] == true then
+          if track[i][ct][n] == 1 then
             g.led(n, i, 12)
           else
             g.led(n, i, 4)
           end
 
         elseif i % 2 == 0 then
-          if track[i][ct][n] == true then
+          if track[i][ct][n] == 1 then
             g.led(n, i, 8)
           else
             g.led(n, i, 2)
@@ -398,7 +423,7 @@ function fast_gridredraw()
       if ct == 0 or nil then return
       else
         if i % 2 == 0 then
-          if track[i][ct][n] == true then
+          if track[i][ct][n] == 1 then
             g.led(n, i, 8)
           else
             g.led(n, i, 2)
@@ -410,4 +435,71 @@ function fast_gridredraw()
   end
 
 g.refresh()
+end
+
+
+
+------------------
+-- save/load functions
+----------------------
+
+
+-- each pattern takes up 136 lines of data
+-- 1 :first line is the length of the track
+-- 1 :ON following lines display on/off state
+-- 0 :OFF
+-- 00:NIL following 16-n lines are nil values
+--
+function save_pattern()
+  local count = 0
+  local file = io.open(data_dir .. "gittifer/ekombi.data", "r+")
+  io.output(file)
+  for l=1, ((pattern_select - 1) * 136) do 
+      file:read("*line")
+  end
+    for i = 1, 8 do
+      count = tab.count(track[i])
+      if count == nil then
+        io.close(file)
+        return 
+      end
+      io.write(count .. "\n")
+      for n=1, count do
+        io.write(track[i][count][n] .. "\n")
+      end
+      for n=1, 16 - count do
+          io.write("00\n")
+      end
+    end
+  print("SAVE COMPLETE")
+  io.close(file)
+end
+
+function load_pattern()
+  local tracklen = 0
+  local file = io.open(data_dir .. "gittifer/ekombi.data", "r")
+  if file then
+    print("datafile found")
+    io.input(file)
+    for l=1, ((pattern_select - 1) * 136) do
+      file:read("*line")
+    end
+    for i = 1, 8 do
+      track[i] = {}
+      tracklen = tonumber(io.read("*line"))
+      for n=1, tracklen do
+        track[i][n] = {}
+      end
+      for j=1, tracklen do
+        track[i][tracklen][j] = tonumber(io.read("*line"))
+      end
+      for m = 1, 16 - tab.count(track[i]) do
+        io.read("*line")
+      end
+    end
+
+    print("LOAD COMPLETE")
+    io.close(file)
+  end
+  -- for i = 1, 8 do reer(i) end
 end
