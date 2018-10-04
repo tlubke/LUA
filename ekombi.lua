@@ -307,30 +307,36 @@ function count(c)
     fast_gridredraw()
   end
 
+  pending = {}
   for i=2, 8, 2 do
     cnt = tab.count(track[i])
     if cnt == 0 or cnt == nil then
       return
     else
       if track[i][cnt][(q_position%cnt)+1] == 1 then
-        cnt = tab.count(track[i-1])
-          if cnt == 0 or cnt == nil then
-            return
-          else
-            for n=1, cnt do
-            if position / ( ppq // (tab.count(track[i-1][cnt]))) == n-1 then
-              if track[i-1][cnt][n] == 1 then
-                engine.trig(i//2 -1) -- samples are only 0-3
-              end
+        tab.insert(pending,i-1)
+      end
+    end
+  end
+  
+  if tab.count(pending) > 0 then
+    for i=1, tab.count(pending)
+      cnt = tab.count(track[pending[i]])
+      if cnt == 0 or cnt == nil then
+        return
+      else
+        for n=1, cnt do
+          if position / ( ppq // (tab.count(track[pending[i]][cnt]))) == n-1 then
+            if track[pending[i]][cnt][n] == 1 then
+              engine.trig(i//2 -1) -- samples are only 0-3
             end
           end
         end
-      else
-        -- pass
       end
     end
   end
 end
+      
 
 
 
